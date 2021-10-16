@@ -1,3 +1,0 @@
-# Remember to edit the host
-[Proxmox]
-192.168.110.83
