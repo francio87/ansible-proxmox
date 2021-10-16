@@ -1,11 +1,12 @@
 ---
-#- import_tasks: load_vars.yml
-
 - hosts: Proxmox
   any_errors_fatal: true
+  vars:
+    - my_user: "my-user"
+    - my_pass: "my-pass"
   tasks:
 
-  - name: "Display Host info"
+  - name: Display Host info
     debug:
       msg:
         - "Host: {{ ansible_fqdn }}"
@@ -61,3 +62,31 @@
       user: root
       job: /usr/local/bin/cv4pve-autosnap --host=localhost --username="userbackup@pve" --password="mypassword" --vmid="all" snap --label="daily" --keep=4 >> /tmp/px-autosnap.log
       cron_file: 10-autosnap-px
+
+#
+#
+#
+# pveum user add utente@pve --password "123456" --comment "Ansible added admin"
+# pveum group add adminz -comment "Ansible Admins"
+# pveum acl modify / -group adminz -role Administrator
+# pveum user modify utente@pve -group adminz
+#
+#
+#
+
+  - name: Create an additional user
+    shell: pveum user add {{ my_user }}@pve --password {{ my_pass }} --comment "Ansible added admin"
+
+  - name: Create adminz group
+    shell: pveum group add adminz -comment "Ansible Admins"
+
+  - name: Give Administrator permission to adminz group
+    shell: pveum acl modify / -group adminz -role Administrator
+
+  - name: Add "{{ my_user }}"@pve to adminz group
+    shell: pveum user modify "{{ my_user }}"@pve -group adminz
+
+
+
+
+
