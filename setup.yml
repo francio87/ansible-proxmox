@@ -3,7 +3,7 @@
   any_errors_fatal: true
   vars:
 
-  # Set user and password for the additional admin don't use strange chars
+  # Set user and password for the additional admin account, don't use strange chars
     - my_user: "myadminaccount"
     - my_pass: "myStrongPASS"
 
@@ -19,6 +19,14 @@
     debug:
       msg: "{{ msg.split('\n') }}"
 
+  - name: Check network connectivity
+    wait_for:
+      host: github.com
+      port: 22
+      state: started
+      delay: 0
+      timeout: 3
+
   - name: Check if initial setup has already been performed
     stat: path="/root/.init_setup_done"
     register: already_prep
@@ -26,7 +34,8 @@
   - name: Fail if already run on host
     fail: msg="Initial Setup Already completed!"
     when: already_prep.stat.exists
-  
+
+# Commented for debug purpose  
 #  - name: "Update cache and execute dist-upgrade"
 #    apt:
 #      update_cache: yes
