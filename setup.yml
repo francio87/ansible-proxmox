@@ -30,11 +30,6 @@
       cache_valid_time: 3600
       upgrade: dist
 
-
- # - name: "Upgrade the OS (apt-get dist-upgrade)"
- #     apt:
- #     upgrade: dist
-
   - name: "Install utils"
     apt:
       name:
