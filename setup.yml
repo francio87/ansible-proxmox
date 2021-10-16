@@ -9,10 +9,10 @@
   - name: Display Host info
     debug:
       msg:
-        - "Host: {{ ansible_fqdn }}"
-        - "IP: {{ ansible_default_ipv4['address'] }}"
-        - "OS: {{ ansible_distribution }} {{ ansible_distribution_major_version }}"
-        - "Kernel: {{ ansible_kernel_version }}"
+        - Host: "{{ ansible_fqdn }}"
+        - IP: "{{ ansible_default_ipv4['address'] }}"
+        - OS: "{{ ansible_distribution }} {{ ansible_distribution_major_version }}"
+        - Kernel: "{{ ansible_kernel_version }}"
 
   - name: "Check if initial setup has already been performed"
     stat: path="/root/.init_setup_done"
@@ -60,7 +60,8 @@
       minute: "55"
       hour: "20"
       user: root
-      job: /usr/local/bin/cv4pve-autosnap --host=localhost --username="userbackup@pve" --password="mypassword" --vmid="all" snap --label="daily" --keep=4 >> /tmp/px-autosnap.log
+      #job: /usr/local/bin/cv4pve-autosnap --host=localhost --username="userbackup@pve" --password="mypassword" --vmid="all" snap --label="daily" --keep=4 >> /tmp/px-autosnap.log
+      job: /usr/local/bin/cv4pve-autosnap --host=localhost --username="{{ my_user}}@pve" --password="{{my_pass}}" --vmid="all" snap --label="daily" --keep=4 >> /tmp/px-autosnap.log
       cron_file: 10-autosnap-px
 
 #
