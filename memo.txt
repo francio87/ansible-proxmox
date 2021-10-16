@@ -1,0 +1,20 @@
+#
+#
+#
+# pveum user add utente@pve --password "123456" --comment "Ansible added admin"
+# pveum group add adminz -comment "Ansible Admins"
+# pveum acl modify / -group adminz -role Administrator
+# pveum user modify utente@pve -group adminz
+#
+#
+#
+
+
+
+  - name: Creating .screenrc file
+    copy:
+      dest: "/root/.screenrc"
+      content: "startup_message off"
+      #content: |
+      #  line 01
+      #  line 02

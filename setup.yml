@@ -3,8 +3,8 @@
   any_errors_fatal: true
   vars:
   # Set user and password for the additional admin don't use strange chars
-    - my_user: "my-user"
-    - my_pass: "my-pass"
+    - my_user: "myadminaccount"
+    - my_pass: "mysuperStrongPASS"
   tasks:
 
   - name: Display Host info
@@ -15,19 +15,13 @@
         - OS: "{{ ansible_distribution }} {{ ansible_distribution_major_version }}"
         - Kernel: "{{ ansible_kernel_version }}"
 
-  - name: "Check if initial setup has already been performed"
+  - name: Check if initial setup has already been performed
     stat: path="/root/.init_setup_done"
     register: already_prep
 
-  - name: "Fail if already run on host"
+  - name: Fail if already run on host
     fail: msg="Initial Setup Already completed!"
     when: already_prep.stat.exists
-
-
-# Commented for test, remember to remove before push!
-#
-#  - name: "create lock file"
-#    file: path="/root/.init_setup_done" state=touch
   
 #  - name: "Update cache and execute dist-upgrade"
 #    apt:
@@ -35,7 +29,7 @@
 #      upgrade: dist
       #cache_valid_time: 3600 -- We need to update the cache every time, if no enterprise key installed we should recive an Unauthorized message
 
-  - name: "Install utils"
+  - name: Install utils (vim, screen, unzip, nethofgs, iftop, htop)
     package:
       name:
         - vim
@@ -46,7 +40,12 @@
         - htop
       state: latest
     
-  - name: "Install cv4pve-autosnap by Corsinvest"
+  - name: Creating .screenrc file
+    copy:
+      dest: "/root/.screenrc"
+      content: "startup_message off"
+
+  - name: Install cv4pve-autosnap by Corsinvest - https://github.com/Corsinvest/cv4pve-autosnap
     unarchive:
       src: "https://github.com/Corsinvest/cv4pve-autosnap/releases/download/v1.11.0/cv4pve-autosnap-linux-x64.zip"
       dest: /usr/local/bin
@@ -55,7 +54,7 @@
       owner: root
       group: root
 
-  - name: Creates a cron for auto-snapshot
+  - name: Generating cron for auto-snapshot
     ansible.builtin.cron:
       name: proxmox autosnap
       minute: "55"
@@ -65,18 +64,7 @@
       job: /usr/local/bin/cv4pve-autosnap --host=localhost --username="{{ my_user}}@pve" --password="{{my_pass}}" --vmid="all" snap --label="daily" --keep=4 >> /tmp/px-autosnap.log
       cron_file: 10-autosnap-px
 
-#
-#
-#
-# pveum user add utente@pve --password "123456" --comment "Ansible added admin"
-# pveum group add adminz -comment "Ansible Admins"
-# pveum acl modify / -group adminz -role Administrator
-# pveum user modify utente@pve -group adminz
-#
-#
-#
-
-  - name: Create an additional user
+  - name: Create {{ my_user }} user
     shell: pveum user add {{ my_user }}@pve --password {{ my_pass }} --comment "Ansible added admin"
 
   - name: Create adminz group
@@ -85,10 +73,16 @@
   - name: Give Administrator permission to adminz group
     shell: pveum acl modify / -group adminz -role Administrator
 
-  - name: Add "{{ my_user }}"@pve to adminz group
+  - name: Add {{ my_user }}@pve to adminz group
     shell: pveum user modify "{{ my_user }}"@pve -group adminz
 
+  - name: create lock file
+    file: path="/root/.init_setup_done" state=touch
 
-
-
-
+  - name: Complete!
+    debug:
+      msg:
+        - "An additional user has been create with Administrator privileges :"
+        - "Username : {{ my_user }}"
+        - "Password : {{ my_pass }}"
+        - "A new cron has been created to automate the daily vm snapshot, located in /etc/cron.d/10-autosnap-px"
