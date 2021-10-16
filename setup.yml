@@ -2,18 +2,22 @@
 - hosts: Proxmox
   any_errors_fatal: true
   vars:
+
   # Set user and password for the additional admin don't use strange chars
     - my_user: "myadminaccount"
-    - my_pass: "mysuperStrongPASS"
+    - my_pass: "myStrongPASS"
+
   tasks:
 
   - name: Display Host info
+    vars:
+      msg: |
+         Host: {{ ansible_fqdn }}
+         IP: {{ ansible_default_ipv4['address'] }}
+         OS: {{ ansible_distribution }} {{ ansible_distribution_major_version }}
+         Kernel: {{ ansible_kernel_version }}
     debug:
-      msg:
-        - Host: "{{ ansible_fqdn }}"
-        - IP: "{{ ansible_default_ipv4['address'] }}"
-        - OS: "{{ ansible_distribution }} {{ ansible_distribution_major_version }}"
-        - Kernel: "{{ ansible_kernel_version }}"
+      msg: "{{ msg.split('\n') }}"
 
   - name: Check if initial setup has already been performed
     stat: path="/root/.init_setup_done"
@@ -76,13 +80,16 @@
   - name: Add {{ my_user }}@pve to adminz group
     shell: pveum user modify "{{ my_user }}"@pve -group adminz
 
-  - name: create lock file
+  - name: Create lock file
     file: path="/root/.init_setup_done" state=touch
 
-  - name: Complete!
+  - name: Done!
+    vars:
+      msg: |
+         An additional user has been create with Administrator privileges.
+         Username : {{ my_user }}
+         Password : {{ my_pass }}
+         A new cron file has been generated automate the daily vm snapshot
+         located at : /etc/cron.d/10-autosnap-px
     debug:
-      msg:
-        - "An additional user has been create with Administrator privileges :"
-        - "Username : {{ my_user }}"
-        - "Password : {{ my_pass }}"
-        - "A new cron has been created to automate the daily vm snapshot, located in /etc/cron.d/10-autosnap-px"
+      msg: "{{ msg.split('\n') }}"
