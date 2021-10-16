@@ -1,4 +1,2 @@
 # Ansible Proxmox Setup
-## Auto Snap
-
-...
+## WIP
