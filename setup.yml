@@ -21,17 +21,20 @@
     fail: msg="Initial Setup Already completed!"
     when: already_prep.stat.exists
 
-  - name: "create lock file"
-    file: path="/root/.init_setup_done" state=touch
+
+# Commented for test, remember to remove before push!
+#
+#  - name: "create lock file"
+#    file: path="/root/.init_setup_done" state=touch
   
-  - name: "Update cache and execute dist-upgrade"
-    apt:
-      update_cache: yes
-      cache_valid_time: 3600
-      upgrade: dist
+#  - name: "Update cache and execute dist-upgrade"
+#    apt:
+#      update_cache: yes
+#      upgrade: dist
+      #cache_valid_time: 3600 -- We need to update the cache every time, if no enterprise key installed we should recive an Unauthorized message
 
   - name: "Install utils"
-    apt:
+    package:
       name:
         - vim
         - screen
@@ -41,3 +44,20 @@
         - htop
       state: latest
     
+  - name: "Install cv4pve-autosnap by Corsinvest"
+    unarchive:
+      src: "https://github.com/Corsinvest/cv4pve-autosnap/releases/download/v1.11.0/cv4pve-autosnap-linux-x64.zip"
+      dest: /usr/local/bin
+      remote_src: yes
+      mode: 0755
+      owner: root
+      group: root
+
+  - name: Creates a cron for auto-snapshot
+    ansible.builtin.cron:
+      name: proxmox autosnap
+      minute: "55"
+      hour: "20"
+      user: root
+      job: /usr/local/bin/cv4pve-autosnap --host=localhost --username="userbackup@pve" --password="mypassword" --vmid="all" snap --label="daily" --keep=4 >> /tmp/px-autosnap.log
+      cron_file: 10-autosnap-px
