@@ -2,6 +2,7 @@
 - hosts: Proxmox
   any_errors_fatal: true
   vars:
+  # Set user and password for the additional admin don't use strange chars
     - my_user: "my-user"
     - my_pass: "my-pass"
   tasks:
