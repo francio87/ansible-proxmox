@@ -1,13 +1,19 @@
 ---
 - hosts: Proxmox
   any_errors_fatal: true
+#  include_vars: "configuration.yml"
+  become: yes
   vars:
-
-  # Set user and password for the additional admin account, don't use strange chars
-    - my_user: "myadminaccount"
-    - my_pass: "myStrongPASS"
+    var_1: proxmox-ve-release-5.x.asc
+    var_2: 0D9A1950E2EF0603
 
   tasks:
+
+  - name: Prints two lines of messages, but only if there is an environment value set
+    ansible.builtin.debug:
+      msg:
+      - "Provisioning based on YOUR_KEY which is: {{ var_1 }}"
+      - "These servers were built using the password of '{{ var_2 }}'. Please retain this for later use."
 
   - name: Exterminate mankind
     pause:
