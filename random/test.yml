@@ -1,0 +1,14 @@
+---
+- hosts: Proxmox
+  any_errors_fatal: true
+  vars:
+
+  # Set user and password for the additional admin account, don't use strange chars
+    - my_user: "myadminaccount"
+    - my_pass: "myStrongPASS"
+
+  tasks:
+
+  - name: Exterminate mankind
+    pause:
+      prompt: Please confirm you want to exterminate mankind! Press return to continue. Press Ctrl+c and then "a" to abort
