@@ -2,103 +2,104 @@
 - hosts: Proxmox
   any_errors_fatal: true
   vars:
-
-  # Set user and password for the additional admin account, don't use strange chars
-    - my_user: "myadminaccount"
-    - my_pass: "myStrongPASS"
+    - my_user: "myadminaccount" # Set username
+    - pwd_alias: "{{ lookup('password', '/dev/null length=15 chars=ascii_letters') }}"
 
   tasks:
 
-  - name: Display Host info
-    vars:
-      msg: |
-         Host: {{ ansible_fqdn }}
-         IP: {{ ansible_default_ipv4['address'] }}
-         OS: {{ ansible_distribution }} {{ ansible_distribution_major_version }}
-         Kernel: {{ ansible_kernel_version }}
-    debug:
-      msg: "{{ msg.split('\n') }}"
+    - set_fact:
+        my_pass: "{{ pwd_alias }}"
 
-  - name: Check network connectivity
-    wait_for:
-      host: github.com
-      port: 22
-      state: started
-      delay: 0
-      timeout: 3
+    - name: Display Host info
+      vars:
+        msg: |
+          Host: {{ ansible_fqdn }}
+          IP: {{ ansible_default_ipv4['address'] }}
+          OS: {{ ansible_distribution }} {{ ansible_distribution_major_version }}
+          Kernel: {{ ansible_kernel_version }}
+      debug:
+        msg: "{{ msg.split('\n') }}"
 
-  - name: Check if initial setup has already been performed
-    stat: path="/root/.init_setup_done"
-    register: already_prep
+    - name: Check network connectivity
+      wait_for:
+        host: github.com
+        port: 22
+        state: started
+        delay: 0
+        timeout: 5
 
-  - name: Fail if already run on host
-    fail: msg="Initial Setup Already completed!"
-    when: already_prep.stat.exists
+    - name: Check if initial setup has already been performed
+      stat: path="/root/.init_setup_done"
+      register: already_prep
 
-# Commented for debug purpose  
-#  - name: "Update cache and execute dist-upgrade"
-#    apt:
-#      update_cache: yes
-#      upgrade: dist
-      #cache_valid_time: 3600 -- We need to update the cache every time, if no enterprise key installed we should recive an Unauthorized message
+    - name: Fail if already run on host
+      fail: msg="Initial Setup Already completed!"
+      when: already_prep.stat.exists
 
-  - name: Install utils (vim, screen, unzip, nethogs, iftop, htop)
-    package:
-      name:
-        - vim
-        - screen
-        - unzip
-        - nethogs
-        - iftop
-        - htop
-      state: latest
-    
-  - name: Creating .screenrc file
-    copy:
-      dest: "/root/.screenrc"
-      content: "startup_message off"
+  # Commented for debug purpose  
+  #  - name: "Update cache and execute dist-upgrade"
+  #    apt:
+  #      update_cache: yes
+  #      upgrade: dist
+        #cache_valid_time: 3600 -- We need to update the cache every time, if no enterprise key installed we should recive an Unauthorized message
 
-  - name: Install cv4pve-autosnap by Corsinvest - https://github.com/Corsinvest/cv4pve-autosnap
-    unarchive:
-      src: "https://github.com/Corsinvest/cv4pve-autosnap/releases/download/v1.11.0/cv4pve-autosnap-linux-x64.zip"
-      dest: /usr/local/bin
-      remote_src: yes
-      mode: 0755
-      owner: root
-      group: root
+    - name: Install utils (vim, screen, unzip, nethogs, iftop, htop)
+      package:
+        name:
+          - vim
+          - screen
+          - unzip
+          - nethogs
+          - iftop
+          - htop
+        state: latest
 
-  - name: Generating cron for auto-snapshot
-    ansible.builtin.cron:
-      name: proxmox autosnap
-      minute: "55"
-      hour: "20"
-      user: root
-      #job: /usr/local/bin/cv4pve-autosnap --host=localhost --username="userbackup@pve" --password="mypassword" --vmid="all" snap --label="daily" --keep=4 >> /tmp/px-autosnap.log
-      job: /usr/local/bin/cv4pve-autosnap --host=localhost --username="{{ my_user}}@pve" --password="{{my_pass}}" --vmid="all" snap --label="daily" --keep=4 >> /tmp/px-autosnap.log
-      cron_file: 10-autosnap-px
+    - name: Creating .screenrc file
+      copy:
+        dest: "/root/.screenrc"
+        content: "startup_message off"
 
-  - name: Create {{ my_user }} user
-    shell: pveum user add {{ my_user }}@pve --password {{ my_pass }} --comment "Ansible added admin"
+    - name: Install cv4pve-autosnap by Corsinvest - https://github.com/Corsinvest/cv4pve-autosnap
+      unarchive:
+        src: "https://github.com/Corsinvest/cv4pve-autosnap/releases/download/v1.11.0/cv4pve-autosnap-linux-x64.zip"
+        dest: /usr/local/bin
+        remote_src: yes
+        mode: 0755
+        owner: root
+        group: root
 
-  - name: Create adminz group
-    shell: pveum group add adminz -comment "Ansible Admins"
+    - name: Generating cron for auto-snapshot
+      ansible.builtin.cron:
+        name: proxmox autosnap
+        minute: "55"
+        hour: "20"
+        user: root
+        #job: /usr/local/bin/cv4pve-autosnap --host=localhost --username="userbackup@pve" --password="mypassword" --vmid="all" snap --label="daily" --keep=4 >> /tmp/px-autosnap.log
+        job: /usr/local/bin/cv4pve-autosnap --host=localhost --username="{{ my_user}}@pve" --password="{{my_pass}}" --vmid="all" snap --label="daily" --keep=4 >> /tmp/px-autosnap.log
+        cron_file: 10-autosnap-px
 
-  - name: Give Administrator permission to adminz group
-    shell: pveum acl modify / -group adminz -role Administrator
+    - name: Create {{ my_user }} user
+      shell: pveum user add {{ my_user }}@pve --password {{ my_pass }} --comment "Ansible added admin"
 
-  - name: Add {{ my_user }}@pve to adminz group
-    shell: pveum user modify "{{ my_user }}"@pve -group adminz
+    - name: Create adminz group
+      shell: pveum group add adminz -comment "Ansible Admins"
 
-  - name: Create lock file
-    file: path="/root/.init_setup_done" state=touch
+    - name: Give Administrator permission to adminz group
+      shell: pveum acl modify / -group adminz -role Administrator
 
-  - name: Done!
-    vars:
-      msg: |
-         An additional user has been create with Administrator privileges.
-         Username : {{ my_user }}
-         Password : {{ my_pass }}
-         A new cron file has been generated automate the daily vm snapshot
-         located at : /etc/cron.d/10-autosnap-px
-    debug:
-      msg: "{{ msg.split('\n') }}"
+    - name: Add {{ my_user }}@pve to adminz group
+      shell: pveum user modify "{{ my_user }}"@pve -group adminz
+
+    - name: Create lock file
+      file: path="/root/.init_setup_done" state=touch
+
+    - name: Done!
+      vars:
+        msg: |
+          An additional user has been create with Administrator privileges.
+          Username : {{ my_user }}
+          Password : {{ my_pass }}
+          A new cron file has been generated to automate the daily vm snapshot
+          located at : /etc/cron.d/10-autosnap-px
+      debug:
+        msg: "{{ msg.split('\n') }}"
