@@ -43,7 +43,7 @@
   #      upgrade: dist
         #cache_valid_time: 3600 -- We need to update the cache every time, if no enterprise key installed we should recive an Unauthorized message
 
-    - name: Install utils (vim, screen, unzip, nethogs, iftop, htop, nut)
+    - name: Install utils (vim, screen, unzip, nethogs, iftop, htop)
       package:
         name:
           - vim
@@ -52,7 +52,6 @@
           - nethogs
           - iftop
           - htop
-          - nut
         state: latest
 
     - name: Creating .screenrc file
