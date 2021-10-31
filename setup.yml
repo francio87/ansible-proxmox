@@ -35,12 +35,11 @@
       fail: msg="Initial Setup Already completed!"
       when: already_prep.stat.exists
 
-    # Commented for debug purpose
-    #  - name: "Update cache and execute dist-upgrade"
-    #    apt:
-    #      update_cache: yes
-    #      upgrade: dist
-    #cache_valid_time: 3600 -- We need to update the cache every time, if no enterprise key installed we should recive an Unauthorized message
+    - name: "Update cache and execute dist-upgrade"
+       apt:
+        update_cache: yes
+        upgrade: dist
+        #cache_valid_time: 3600 -- We need to update the cache every time, if no enterprise key installed we should recive an Unauthorized message
 
     - name: Install utils (vim, screen, unzip, nethogs, iftop, htop)
       package:

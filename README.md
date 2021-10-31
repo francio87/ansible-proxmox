@@ -1,7 +1,10 @@
 # Ansible Proxmox Setup
-## How to use
 
-Install Ansible:
+## Register Proxmox from the GUI
+
+Make sure that Proxmox, is registered so we can get accesso to the `Enterprise repository`
+
+## Install Ansible on your PC
 
 Debian / Ubuntu
 
