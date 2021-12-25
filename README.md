@@ -2,7 +2,7 @@
 
 ## Register Proxmox from the GUI
 
-Make sure that Proxmox, is registered so we can get accesso to the `Enterprise repository`
+Make sure that Proxmox, is registered so we can get access to the `Enterprise repository`
 
 ## Install Ansible on your PC
 
