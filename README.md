@@ -1,5 +1,7 @@
 # Ansible Proxmox Setup
 
+Dumb ansible playbook to prep Proxmox Host, using [cv4pve-autosnap](https://github.com/Corsinvest/cv4pve-autosnap).
+
 ## Register Proxmox from the GUI
 
 Make sure that Proxmox, is registered so we can get access to the `Enterprise repository`
