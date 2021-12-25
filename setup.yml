@@ -59,7 +59,7 @@
 
     - name: Install cv4pve-autosnap by Corsinvest - https://github.com/Corsinvest/cv4pve-autosnap
       unarchive:
-        src: "https://github.com/Corsinvest/cv4pve-autosnap/releases/download/v1.11.0/cv4pve-autosnap-linux-x64.zip"
+        src: "https://github.com/Corsinvest/cv4pve-autosnap/releases/download/v1.13.2/cv4pve-autosnap-linux-x64.zip"
         dest: /usr/local/bin
         remote_src: yes
         mode: 0755
