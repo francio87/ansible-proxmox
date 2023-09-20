@@ -11,13 +11,13 @@ Make sure that Proxmox, is registered so we can get access to the `Enterprise re
 Debian / Ubuntu
 
 ```
-sudo apt install ansible
+sudo apt install ansible git python3-paramiko
 ```
 
 Fedora
 
 ```
-sudo dnf install ansible
+sudo dnf install ansible git python3-paramiko
 ```
 
 Run `ansible-playbook` :
