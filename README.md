@@ -44,15 +44,7 @@ ansible-playbook \
   setup.yml
 ```
 
-The playbook does not require SSH keys. A key can be used instead for automation or development:
-
-```bash
-ansible-playbook \
-  -i '192.168.129.1,' \
-  -u root \
-  --private-key ~/.ssh/proxmox-test \
-  setup.yml
-```
+The playbook does not require SSH keys.
 
 ## Override version and snapshot settings
 
