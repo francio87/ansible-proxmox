@@ -37,11 +37,7 @@ The playbook installs `unzip` when needed.
 The IP is supplied as an inline Ansible inventory. `-k` asks for the SSH password interactively and keeps it out of the command line and repository:
 
 ```bash
-ansible-playbook \
-  -i '192.168.129.1,' \
-  -u root \
-  -k \
-  setup.yml
+ansible-playbook -i '192.168.129.1,' -u root -k setup.yml
 ```
 
 The playbook does not require SSH keys.
@@ -49,15 +45,7 @@ The playbook does not require SSH keys.
 ## Override version and snapshot settings
 
 ```bash
-ansible-playbook \
-  -i '192.168.129.1,' \
-  -u root \
-  -k \
-  setup.yml \
-  -e cv4pve_autosnap_version=2.1.1 \
-  -e cv4pve_autosnap_vmid=@all \
-  -e cv4pve_autosnap_keep=4 \
-  -e cv4pve_autosnap_label=daily
+ansible-playbook -i '192.168.129.1,' -u root -k setup.yml -e cv4pve_autosnap_version=2.1.1 -e cv4pve_autosnap_vmid=@all -e cv4pve_autosnap_keep=4 -e cv4pve_autosnap_label=daily
 ```
 
 Other supported variables:
@@ -98,11 +86,7 @@ The playbook verifies the installed binary version and configures:
 Manual status check:
 
 ```bash
-ssh root@192.168.129.1 \
-  /usr/local/bin/cv4pve-autosnap \
-  @/etc/pve/priv/cv4pve-autosnap.conf \
-  --vmid=@all \
-  status
+ssh root@192.168.129.1 /usr/local/bin/cv4pve-autosnap @/etc/pve/priv/cv4pve-autosnap.conf --vmid=@all status
 ```
 
 Before testing a real snapshot, create a disposable VM or container. Verify the QEMU Guest Agent and application consistency separately.
