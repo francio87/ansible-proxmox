@@ -14,8 +14,7 @@ The playbook creates a dedicated Proxmox service user, a least-privilege role, a
 - Re-running the playbook is supported.
 - Existing API token is preserved and never regenerated.
 - An empty existing token parameter file causes a safe failure.
-- Binary releases are kept under `/usr/local/libexec/cv4pve-autosnap/<version>`.
-- `/usr/local/bin/cv4pve-autosnap` points to the selected version.
+- The selected binary is installed directly at `/usr/local/bin/cv4pve-autosnap`.
 - The API token parameter file is stored at `/etc/pve/priv/cv4pve-autosnap.conf` with mode `0600`.
 - Snapshots target all VMs and containers by default with `--vmid=@all`.
 
