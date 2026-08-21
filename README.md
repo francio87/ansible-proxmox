@@ -8,7 +8,7 @@ The playbook creates a dedicated Proxmox service user, a least-privilege role, a
 ## Behavior
 
 - Default `cv4pve-autosnap` version is pinned in `setup.yml`.
-- Current pinned version: `2.1.1`.
+- Current pinned version: [`2.1.1`](setup.yml#L9).
 - Override the version explicitly with `-e cv4pve_autosnap_version=X.Y.Z`.
 - No automatic upgrade to an unknown release.
 - Re-running the playbook is supported.
@@ -59,7 +59,7 @@ cv4pve_autosnap_only_running: true
 cv4pve_autosnap_hour: "20"
 cv4pve_autosnap_minute: "55"
 cv4pve_autosnap_user: autosnap@pve
-cv4pve_autosnap_token_id: daily
+cv4pve_autosnap_token_id: autosnap
 ```
 
 ## Permissions
@@ -73,7 +73,17 @@ Datastore.Audit
 Pool.Audit
 ```
 
-The token uses Proxmox privilege separation. The token secret is returned only during creation, so the playbook refuses to overwrite or recreate it automatically.
+## Proxmox service account and API token
+
+The playbook creates the following Proxmox credentials when they do not already exist:
+
+- service user: `autosnap@pve`;
+- privilege-separated API token: `autosnap@pve!autosnap`;
+- token configuration: `/etc/pve/priv/cv4pve-autosnap.conf` with mode `0600`.
+
+The token secret is returned only during its initial creation. The playbook does not print it, store it in the repository, or regenerate it on later runs. If the existing token configuration is empty, the playbook stops instead of overwriting it.
+
+The token uses Proxmox privilege separation and is granted the least-privilege `AutoSnap` role.
 
 ## Verification
 

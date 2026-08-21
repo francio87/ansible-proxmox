@@ -16,7 +16,7 @@
     cv4pve_autosnap_minute: "55"
     cv4pve_autosnap_hour: "20"
     cv4pve_autosnap_user: "autosnap@pve"
-    cv4pve_autosnap_token_id: "daily"
+    cv4pve_autosnap_token_id: "autosnap"
     cv4pve_autosnap_role: "AutoSnap"
     cv4pve_autosnap_config: "/etc/pve/priv/cv4pve-autosnap.conf"
     cv4pve_autosnap_bin_path: "/usr/local/bin/cv4pve-autosnap"
