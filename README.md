@@ -15,8 +15,9 @@ The playbook creates a dedicated Proxmox service user, a least-privilege role, a
 - Existing API token is preserved and never regenerated.
 - An empty existing token parameter file causes a safe failure.
 - The selected binary is installed directly at `/usr/local/bin/cv4pve-autosnap`.
+- Scheduled snapshots target running VMs and containers only by default.
 - The API token parameter file is stored at `/etc/pve/priv/cv4pve-autosnap.conf` with mode `0600`.
-- Snapshots target all VMs and containers by default with `--vmid=@all`.
+- VM selection defaults to all VMs and containers with `--vmid=@all`.
 
 Snapshots are not backups. Test restore procedures separately.
 
@@ -44,7 +45,7 @@ The playbook does not require SSH keys.
 ## Override version and snapshot settings
 
 ```bash
-ansible-playbook -i '192.168.129.1,' -u root -k setup.yml -e cv4pve_autosnap_version=2.1.1 -e cv4pve_autosnap_vmid=@all -e cv4pve_autosnap_keep=4 -e cv4pve_autosnap_label=daily
+ansible-playbook -i '192.168.129.1,' -u root -k setup.yml -e cv4pve_autosnap_version=2.1.1 -e cv4pve_autosnap_vmid=@all -e cv4pve_autosnap_keep=4 -e cv4pve_autosnap_label=daily -e cv4pve_autosnap_only_running=true
 ```
 
 Other supported variables:
@@ -54,6 +55,7 @@ cv4pve_autosnap_version: "2.1.1"
 cv4pve_autosnap_vmid: "@all"
 cv4pve_autosnap_label: daily
 cv4pve_autosnap_keep: 4
+cv4pve_autosnap_only_running: true
 cv4pve_autosnap_hour: "20"
 cv4pve_autosnap_minute: "55"
 cv4pve_autosnap_user: autosnap@pve
@@ -86,6 +88,12 @@ Manual status check:
 
 ```bash
 ssh root@192.168.129.1 /usr/local/bin/cv4pve-autosnap @/etc/pve/priv/cv4pve-autosnap.conf --vmid=@all status
+```
+
+Direct snapshot command, explicitly limited to running VMs and containers:
+
+```bash
+/usr/local/bin/cv4pve-autosnap @/etc/pve/priv/cv4pve-autosnap.conf --vmid=@all snap --only-running --label=daily --keep=4
 ```
 
 Before testing a real snapshot, create a disposable VM or container. Verify the QEMU Guest Agent and application consistency separately.
