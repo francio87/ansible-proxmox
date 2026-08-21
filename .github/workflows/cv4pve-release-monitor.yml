@@ -1,0 +1,68 @@
+---
+name: Monitor cv4pve-autosnap release
+
+on:
+  schedule:
+    - cron: '17 6 1 * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  check-release:
+    name: Check upstream release
+    runs-on: ubuntu-24.04
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+
+      - name: Compare pinned and upstream versions
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+
+          current_version="$(awk \
+            '$1 == "cv4pve_autosnap_version:" {gsub(/"/, "", $2); print $2; exit}' \
+            setup.yml)"
+          latest_tag="$(gh api \
+            repos/Corsinvest/cv4pve-autosnap/releases/latest \
+            --jq '.tag_name')"
+          latest_version="${latest_tag#v}"
+
+          test -n "$current_version"
+          test -n "$latest_version"
+
+          echo "Pinned version: $current_version"
+          echo "Latest release: $latest_version"
+
+          newest="$(printf '%s\n%s\n' \
+            "$current_version" "$latest_version" | sort -V | tail -n 1)"
+          if [ "$newest" = "$current_version" ]; then
+            echo 'No newer release found.'
+            exit 0
+          fi
+
+          title="[cv4pve-autosnap] New release $latest_version available"
+          if gh issue list --state open --json title --jq '.[].title' \
+            | grep -Fq "$title"; then
+            echo 'An open notification issue already exists.'
+            exit 0
+          fi
+
+          body_file="$RUNNER_TEMP/cv4pve-release-issue.md"
+          cat > "$body_file" <<EOF
+          A new cv4pve-autosnap release is available.
+
+          - Configured version: $current_version
+          - New version: $latest_version
+          - Release: https://github.com/Corsinvest/cv4pve-autosnap/releases/tag/$latest_tag
+
+          Before updating setup.yml, review the changelog, Linux x64 asset,
+          SHA-256 digest, and test on the disposable Proxmox node.
+          EOF
+
+          gh issue create --title "$title" --body-file "$body_file"
