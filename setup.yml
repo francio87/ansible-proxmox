@@ -10,7 +10,7 @@
     cv4pve_autosnap_arch: "linux-x64"
     cv4pve_autosnap_binary: "cv4pve-autosnap"
     cv4pve_autosnap_vmid: "@all"
-    cv4pve_autosnap_label: "daily"
+    cv4pve_autosnap_label: "cron"
     cv4pve_autosnap_keep: 4
     cv4pve_autosnap_only_running: true
     cv4pve_autosnap_minute: "55"
@@ -37,7 +37,7 @@
           - cv4pve_autosnap_vmid | length > 0
           - cv4pve_autosnap_label is match('^[A-Za-z0-9_.-]+$')
           - cv4pve_autosnap_keep | int > 0
-          - cv4pve_autosnap_only_running is boolean
+          - cv4pve_autosnap_only_running | string | lower in ['true', 'false']
           - cv4pve_autosnap_user is match('^[A-Za-z0-9_.-]+@pve$')
           - cv4pve_autosnap_token_id is match('^[A-Za-z0-9_.-]+$')
           - cv4pve_autosnap_role is match('^[A-Za-z0-9_.-]+$')
@@ -369,7 +369,7 @@
         job: >-
           {{ cv4pve_autosnap_bin_path }} @{{ cv4pve_autosnap_config }}
           --vmid={{ cv4pve_autosnap_vmid }} snap
-          {{ '--only-running' if cv4pve_autosnap_only_running else '' }}
+          {{ '--only-running' if cv4pve_autosnap_only_running | bool else '' }}
           --label={{ cv4pve_autosnap_label }} --keep={{ cv4pve_autosnap_keep }}
           >>/var/log/cv4pve-autosnap.log 2>&1
         cron_file: 10-autosnap-px
