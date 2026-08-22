@@ -79,6 +79,38 @@
         cv4pve_config_present: false
       when: cv4pve_existing_config.content is not defined
 
+    - name: Inspect installed cv4pve-autosnap binary
+      ansible.builtin.stat:
+        path: "{{ cv4pve_autosnap_bin_path }}"
+        follow: true
+        get_checksum: false
+      register: cv4pve_installed_binary
+      changed_when: false
+
+    - name: Read installed cv4pve-autosnap version
+      ansible.builtin.command:
+        argv:
+          - "{{ cv4pve_autosnap_bin_path }}"
+          - --version
+      register: cv4pve_installed_version_check
+      changed_when: false
+      failed_when: false
+      check_mode: false
+      when:
+        - cv4pve_installed_binary.stat.exists | default(false)
+        - cv4pve_installed_binary.stat.isreg | default(false)
+        - cv4pve_installed_binary.stat.executable | default(false)
+
+    - name: Normalize installed cv4pve-autosnap version
+      ansible.builtin.set_fact:
+        cv4pve_installed_version: "{{ cv4pve_installed_version_check.stdout | default('') | trim }}"
+
+    - name: Determine whether cv4pve-autosnap needs installation
+      ansible.builtin.set_fact:
+        cv4pve_autosnap_update_needed: >-
+          {{ (cv4pve_installed_version_check.rc | default(1) | int) != 0
+             or cv4pve_installed_version != cv4pve_autosnap_version }}
+
   tasks:
     - name: Query cv4pve-autosnap release
       ansible.builtin.uri:
@@ -91,6 +123,8 @@
         status_code: 200
       register: cv4pve_release
       changed_when: false
+      check_mode: false
+      when: cv4pve_autosnap_update_needed
 
     - name: Select cv4pve-autosnap release asset
       ansible.builtin.set_fact:
@@ -99,6 +133,14 @@
           {{ cv4pve_release.json.assets
              | selectattr('name', 'equalto', 'cv4pve-autosnap-' + cv4pve_autosnap_arch + '.zip')
              | list | first | default({}) }}
+      when: cv4pve_autosnap_update_needed
+
+    - name: Validate cv4pve-autosnap release version
+      ansible.builtin.assert:
+        that:
+          - cv4pve_release_version == cv4pve_autosnap_version
+        fail_msg: "GitHub returned an unexpected release version"
+      when: cv4pve_autosnap_update_needed
 
     - name: Validate cv4pve-autosnap release asset
       ansible.builtin.assert:
@@ -106,18 +148,23 @@
           - cv4pve_release_asset.name is defined
           - cv4pve_release_asset.browser_download_url is defined
         fail_msg: "Release asset not available"
+      when: cv4pve_autosnap_update_needed
 
     - name: Warn when GitHub does not publish an asset digest
       ansible.builtin.debug:
         msg: "GitHub release has no published SHA-256 digest; download uses HTTPS only"
-      when: (cv4pve_release_asset.digest | default('', true) | length) == 0
+      when:
+        - cv4pve_autosnap_update_needed
+        - (cv4pve_release_asset.digest | default('', true) | length) == 0
 
     - name: Validate published asset digest when available
       ansible.builtin.assert:
         that:
           - cv4pve_release_asset.digest is match('^sha256:[0-9a-f]{64}$')
         fail_msg: "Published release digest has invalid format"
-      when: (cv4pve_release_asset.digest | default('', true) | length) > 0
+      when:
+        - cv4pve_autosnap_update_needed
+        - (cv4pve_release_asset.digest | default('', true) | length) > 0
 
     - name: Create temporary cv4pve-autosnap extraction directory
       ansible.builtin.file:
@@ -126,6 +173,7 @@
         owner: root
         group: root
         mode: "0755"
+      when: cv4pve_autosnap_update_needed
 
     - name: Download cv4pve-autosnap release
       ansible.builtin.get_url:
@@ -135,11 +183,13 @@
         owner: root
         group: root
         mode: "0600"
+      when: cv4pve_autosnap_update_needed
 
     - name: Install archive extraction dependency
       ansible.builtin.package:
         name: unzip
         state: present
+      when: cv4pve_autosnap_update_needed
 
     - name: Extract cv4pve-autosnap release
       ansible.builtin.unarchive:
@@ -147,6 +197,7 @@
         dest: "/var/tmp/cv4pve-autosnap-{{ cv4pve_release_version }}"
         remote_src: true
         creates: "/var/tmp/cv4pve-autosnap-{{ cv4pve_release_version }}/{{ cv4pve_autosnap_binary }}"
+      when: cv4pve_autosnap_update_needed
 
     - name: Install cv4pve-autosnap binary in local bin
       ansible.builtin.copy:
@@ -156,6 +207,19 @@
         owner: root
         group: root
         mode: "0755"
+      when: cv4pve_autosnap_update_needed
+
+    - name: Remove temporary cv4pve-autosnap archive
+      ansible.builtin.file:
+        path: "/var/tmp/cv4pve-autosnap-{{ cv4pve_release_version }}.zip"
+        state: absent
+      when: cv4pve_autosnap_update_needed
+
+    - name: Remove temporary cv4pve-autosnap extraction directory
+      ansible.builtin.file:
+        path: "/var/tmp/cv4pve-autosnap-{{ cv4pve_release_version }}"
+        state: absent
+      when: cv4pve_autosnap_update_needed
 
     - name: Read Proxmox roles
       ansible.builtin.command:
@@ -391,6 +455,13 @@
           - --version
       register: cv4pve_version_check
       changed_when: false
+
+    - name: Validate installed cv4pve-autosnap version
+      ansible.builtin.assert:
+        that:
+          - cv4pve_version_check.rc == 0
+          - (cv4pve_version_check.stdout | trim) == cv4pve_autosnap_version
+        fail_msg: "Installed cv4pve-autosnap version does not match {{ cv4pve_autosnap_version }}"
 
     - name: Report configuration without secrets
       ansible.builtin.debug:
