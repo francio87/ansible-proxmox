@@ -25,71 +25,86 @@ Current pinned release: [`2.1.1`](setup.yml#L9). The version is pinned in `setup
 
 ## Main parameters
 
-Edit the variables in `setup.yml`, or override them with `-e`:
+Playbook defaults:
 
 ```yaml
-cv4pve_autosnap_version: "2.1.1"
 cv4pve_autosnap_vmid: "@all"
 cv4pve_autosnap_label: cron
 cv4pve_autosnap_keep: 4
 cv4pve_autosnap_only_running: true
 cv4pve_autosnap_hour: "20"
 cv4pve_autosnap_minute: "55"
-cv4pve_autosnap_user: autosnap@pve
-cv4pve_autosnap_token_id: autosnap
 ```
 
-`cv4pve_autosnap_only_running: true` is the default. The scheduled command then adds `--only-running` after `snap`. Set it to `false` to include stopped guests.
+`cv4pve_autosnap_keep` keeps the newest matching snapshots per VM/CT and label. `cv4pve_autosnap_only_running: true` excludes stopped guests; set it to `false` to include them.
 
-`cv4pve_autosnap_keep` is the retention count per VM/CT and label. For example, `4` keeps the four newest `cron` snapshots for each guest and removes older matching snapshots when the `snap` command runs.
+`cv4pve_autosnap_hour` and `cv4pve_autosnap_minute` accept standard cron syntax: `*`, `*/N`, lists, and ranges. Quote values containing `*` in shell commands.
 
-`cv4pve_autosnap_hour` and `cv4pve_autosnap_minute` are the cron schedule fields. The default `20` and `55` runs every day at `20:55`. To run every three hours at minute `55`, use `cv4pve_autosnap_hour: "*/3"` and `cv4pve_autosnap_minute: "55"`.
+### Modify `setup.yml`
 
-## VM/CT selection examples
+Example: snapshot guests `102`, `104`, and `106` every three hours at minute 55:
 
-The `--vmid` value is passed to `cv4pve-autosnap`. Use these patterns in `cv4pve_autosnap_vmid` or as a direct command option:
+```yaml
+cv4pve_autosnap_vmid: "102,104,106"
+cv4pve_autosnap_only_running: true
+cv4pve_autosnap_hour: "*/3"
+cv4pve_autosnap_minute: "55"
+```
 
-| Goal | Value |
+Example: snapshot all guests except `100` and `104` every 30 minutes:
+
+```yaml
+cv4pve_autosnap_vmid: "@all,-100,-104"
+cv4pve_autosnap_only_running: true
+cv4pve_autosnap_hour: "*"
+cv4pve_autosnap_minute: "*/30"
+```
+
+Example: snapshot all guests once daily at 02:30, including stopped guests:
+
+```yaml
+cv4pve_autosnap_vmid: "@all"
+cv4pve_autosnap_only_running: false
+cv4pve_autosnap_hour: "2"
+cv4pve_autosnap_minute: "30"
+```
+
+Apply changes:
+
+```bash
+ansible-playbook -i '192.168.129.1,' -u root -k setup.yml
+```
+
+### Override at launch
+
+Use the same variables with `-e`, without editing the file:
+
+```bash
+ansible-playbook -i '192.168.129.1,' -u root -k setup.yml -e 'cv4pve_autosnap_vmid=102,104,106' -e 'cv4pve_autosnap_only_running=true' -e 'cv4pve_autosnap_hour=*/3' -e 'cv4pve_autosnap_minute=55'
+```
+
+```bash
+ansible-playbook -i '192.168.129.1,' -u root -k setup.yml -e 'cv4pve_autosnap_vmid=@all,-100,-104' -e 'cv4pve_autosnap_hour=*' -e 'cv4pve_autosnap_minute=*/30'
+```
+
+```bash
+ansible-playbook -i '192.168.129.1,' -u root -k setup.yml -e 'cv4pve_autosnap_vmid=@all' -e 'cv4pve_autosnap_only_running=false' -e 'cv4pve_autosnap_hour=2' -e 'cv4pve_autosnap_minute=30'
+```
+
+VM/CT selection values:
+
+| Goal | `cv4pve_autosnap_vmid` |
 | --- | --- |
 | All VMs and containers | `@all` |
 | Only guests 102, 104, and 106 | `102,104,106` |
 | All guests except 100 and 104 | `@all,-100,-104` |
 | Guests in a pool | `@pool-production` |
 | Guests with a tag | `@tag-production` |
-| Guest names or IDs | `web-server,102` |
 
-The scheduled cron command uses these values from `setup.yml`. Override them with `-e`:
+The playbook renders these variables into `/etc/cron.d/10-autosnap-px`. The default generated schedule is:
 
-All VMs and containers, running guests only:
-
-```bash
-ansible-playbook -i '192.168.129.1,' -u root -k setup.yml -e 'cv4pve_autosnap_vmid=@all' -e 'cv4pve_autosnap_only_running=true'
-```
-
-Only guests 102, 104, and 106. Guest 105 is excluded:
-
-```bash
-ansible-playbook -i '192.168.129.1,' -u root -k setup.yml -e 'cv4pve_autosnap_vmid=102,104,106'
-```
-
-All guests except 100 and 104:
-
-```bash
-ansible-playbook -i '192.168.129.1,' -u root -k setup.yml -e 'cv4pve_autosnap_vmid=@all,-100,-104'
-```
-
-Every three hours at minute 55:
-
-```bash
-ansible-playbook -i '192.168.129.1,' -u root -k setup.yml -e 'cv4pve_autosnap_hour=*/3' -e 'cv4pve_autosnap_minute=55'
-```
-
-To include stopped guests, use `-e 'cv4pve_autosnap_only_running=false'`.
-
-For a manual snapshot, use the generated cron arguments after `@/etc/pve/priv/cv4pve-autosnap.conf`; `--only-running` must come after `snap`:
-
-```bash
-/usr/local/bin/cv4pve-autosnap @/etc/pve/priv/cv4pve-autosnap.conf --vmid=@all snap --only-running --label=cron --keep=4
+```cron
+55 20 * * *
 ```
 
 ## Proxmox account and token
