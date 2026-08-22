@@ -144,7 +144,7 @@ Snapshots are not backups. Test restore procedures separately.
 
 ## Verification and development
 
-The playbook verifies the installed binary version and supports repeated runs without regenerating the API token.
+The playbook checks `/usr/local/bin/cv4pve-autosnap --version` before contacting GitHub. When the installed version matches the pinned version, it skips release lookup, archive download, extraction, and replacement. The only persistent autosnap executable is `/usr/local/bin/cv4pve-autosnap`; ZIP, extraction, and other staging files are used only under `/tmp` during updates and removed after successful installation and verification. The final task verifies the installed binary version and repeated runs do not regenerate the API token.
 
 Local checks:
 
