@@ -1,103 +1,402 @@
 ---
-- hosts: all
+- name: Configure Proxmox autosnap
+  hosts: all
+  gather_facts: true
   any_errors_fatal: true
+
   vars:
-    - my_user: "{{ myuser }}"
-    - pwd_alias: "{{ lookup('password', '/dev/null length=15 chars=ascii_letters') }}"
+    cv4pve_autosnap_repository: "Corsinvest/cv4pve-autosnap"
+    cv4pve_autosnap_version: "2.1.1"
+    cv4pve_autosnap_arch: "linux-x64"
+    cv4pve_autosnap_binary: "cv4pve-autosnap"
+    cv4pve_autosnap_vmid: "@all"
+    cv4pve_autosnap_label: "cron"
+    cv4pve_autosnap_keep: 4
+    cv4pve_autosnap_only_running: true
+    # Cron fields accept standard syntax: *, */N, lists, and ranges.
+    # Every 3 hours:
+    # cv4pve_autosnap_minute: "55"
+    # cv4pve_autosnap_hour: "*/3"
+    # Every 12 hours:
+    # cv4pve_autosnap_minute: "55"
+    # cv4pve_autosnap_hour: "*/12"
+    # Once daily at 02:30:
+    # cv4pve_autosnap_minute: "30"
+    # cv4pve_autosnap_hour: "2"
+    cv4pve_autosnap_minute: "55"
+    cv4pve_autosnap_hour: "20"
+    cv4pve_autosnap_user: "autosnap@pve"
+    cv4pve_autosnap_token_id: "autosnap"
+    cv4pve_autosnap_role: "AutoSnap"
+    cv4pve_autosnap_config: "/etc/pve/priv/cv4pve-autosnap.conf"
+    cv4pve_autosnap_bin_path: "/usr/local/bin/cv4pve-autosnap"
+    cv4pve_autosnap_privileges:
+      - VM.Audit
+      - VM.Snapshot
+      - Datastore.Audit
+      - Pool.Audit
+    cv4pve_role_privileges: "{{ cv4pve_autosnap_privileges | join(' ') }}"
+    cv4pve_release_api_url: >-
+      https://api.github.com/repos/{{ cv4pve_autosnap_repository }}/releases/tags/v{{ cv4pve_autosnap_version }}
+
+  pre_tasks:
+    - name: Validate required variables
+      ansible.builtin.assert:
+        that:
+          - cv4pve_autosnap_version is match('^[0-9]+\\.[0-9]+\\.[0-9]+$')
+          - cv4pve_autosnap_vmid | length > 0
+          - cv4pve_autosnap_label is match('^[A-Za-z0-9_.-]+$')
+          - cv4pve_autosnap_keep | int > 0
+          - cv4pve_autosnap_only_running | string | lower in ['true', 'false']
+          - cv4pve_autosnap_user is match('^[A-Za-z0-9_.-]+@pve$')
+          - cv4pve_autosnap_token_id is match('^[A-Za-z0-9_.-]+$')
+          - cv4pve_autosnap_role is match('^[A-Za-z0-9_.-]+$')
+        fail_msg: "Invalid cv4pve-autosnap variable"
+
+    - name: Read existing autosnap parameter file
+      ansible.builtin.slurp:
+        src: "{{ cv4pve_autosnap_config }}"
+      register: cv4pve_existing_config
+      failed_when: false
+      changed_when: false
+      no_log: true
+
+    - name: Validate existing autosnap parameter file
+      ansible.builtin.assert:
+        that:
+          - (cv4pve_existing_config.content | b64decode | trim | length) > 0
+        fail_msg: "Existing autosnap parameter file is empty; refusing to overwrite it"
+      when: cv4pve_existing_config.content is defined
+      no_log: true
+
+    - name: Mark autosnap parameter file as present
+      ansible.builtin.set_fact:
+        cv4pve_config_present: true
+      when: cv4pve_existing_config.content is defined
+
+    - name: Mark autosnap parameter file as absent
+      ansible.builtin.set_fact:
+        cv4pve_config_present: false
+      when: cv4pve_existing_config.content is not defined
 
   tasks:
-    - set_fact:
-        my_pass: "{{ pwd_alias }}"
+    - name: Query cv4pve-autosnap release
+      ansible.builtin.uri:
+        url: "{{ cv4pve_release_api_url }}"
+        method: GET
+        headers:
+          Accept: application/vnd.github+json
+          X-GitHub-Api-Version: "2022-11-28"
+        return_content: true
+        status_code: 200
+      register: cv4pve_release
+      changed_when: false
 
-    - name: Display Host info
-      vars:
-        msg: |
-          Host: {{ ansible_fqdn }}
-          IP: {{ ansible_default_ipv4['address'] }}
-          OS: {{ ansible_distribution }} {{ ansible_distribution_major_version }}
-          Kernel: {{ ansible_kernel_version }}
-      debug:
-        msg: "{{ msg.split('\n') }}"
+    - name: Select cv4pve-autosnap release asset
+      ansible.builtin.set_fact:
+        cv4pve_release_version: "{{ cv4pve_release.json.tag_name | regex_replace('^v', '') }}"
+        cv4pve_release_asset: >-
+          {{ cv4pve_release.json.assets
+             | selectattr('name', 'equalto', 'cv4pve-autosnap-' + cv4pve_autosnap_arch + '.zip')
+             | list | first | default({}) }}
 
-    - name: Check network connectivity
-      wait_for:
-        host: github.com
-        port: 22
-        state: started
-        delay: 0
-        timeout: 5
+    - name: Validate cv4pve-autosnap release asset
+      ansible.builtin.assert:
+        that:
+          - cv4pve_release_asset.name is defined
+          - cv4pve_release_asset.browser_download_url is defined
+        fail_msg: "Release asset not available"
 
-    - name: Check if initial setup has already been performed
-      stat: path="/root/.init_setup_done"
-      register: already_prep
+    - name: Warn when GitHub does not publish an asset digest
+      ansible.builtin.debug:
+        msg: "GitHub release has no published SHA-256 digest; download uses HTTPS only"
+      when: (cv4pve_release_asset.digest | default('', true) | length) == 0
 
-    - name: Fail if already run on host
-      fail: msg="Initial Setup Already completed!"
-      when: already_prep.stat.exists
+    - name: Validate published asset digest when available
+      ansible.builtin.assert:
+        that:
+          - cv4pve_release_asset.digest is match('^sha256:[0-9a-f]{64}$')
+        fail_msg: "Published release digest has invalid format"
+      when: (cv4pve_release_asset.digest | default('', true) | length) > 0
 
-    - name: "Update cache and execute dist-upgrade"
-      apt:
-        update_cache: yes
-        upgrade: dist
-        #cache_valid_time: 3600 -- We need to update the cache every time, if no enterprise key installed we should recive an Unauthorized message
-
-    - name: Install utils (vim, screen, unzip, nethogs, iftop, htop)
-      package:
-        name:
-          - vim
-          - screen
-          - unzip
-          - nethogs
-          - iftop
-          - htop
-        state: latest
-
-    - name: Creating .screenrc file
-      copy:
-        dest: "/root/.screenrc"
-        content: "startup_message off"
-
-    - name: Install cv4pve-autosnap by Corsinvest - https://github.com/Corsinvest/cv4pve-autosnap
-      unarchive:
-        src: "https://github.com/Corsinvest/cv4pve-autosnap/releases/download/v1.16.0/cv4pve-autosnap-linux-x64.zip"
-        dest: /usr/local/bin
-        remote_src: yes
-        mode: 0755
+    - name: Create temporary cv4pve-autosnap extraction directory
+      ansible.builtin.file:
+        path: "/var/tmp/cv4pve-autosnap-{{ cv4pve_release_version }}"
+        state: directory
         owner: root
         group: root
+        mode: "0755"
 
-    - name: Generating cron for auto-snapshot
+    - name: Download cv4pve-autosnap release
+      ansible.builtin.get_url:
+        url: "{{ cv4pve_release_asset.browser_download_url }}"
+        dest: "/var/tmp/cv4pve-autosnap-{{ cv4pve_release_version }}.zip"
+        checksum: "{{ cv4pve_release_asset.digest | default(omit, true) }}"
+        owner: root
+        group: root
+        mode: "0600"
+
+    - name: Install archive extraction dependency
+      ansible.builtin.package:
+        name: unzip
+        state: present
+
+    - name: Extract cv4pve-autosnap release
+      ansible.builtin.unarchive:
+        src: "/var/tmp/cv4pve-autosnap-{{ cv4pve_release_version }}.zip"
+        dest: "/var/tmp/cv4pve-autosnap-{{ cv4pve_release_version }}"
+        remote_src: true
+        creates: "/var/tmp/cv4pve-autosnap-{{ cv4pve_release_version }}/{{ cv4pve_autosnap_binary }}"
+
+    - name: Install cv4pve-autosnap binary in local bin
+      ansible.builtin.copy:
+        src: "/var/tmp/cv4pve-autosnap-{{ cv4pve_release_version }}/{{ cv4pve_autosnap_binary }}"
+        dest: "{{ cv4pve_autosnap_bin_path }}"
+        remote_src: true
+        owner: root
+        group: root
+        mode: "0755"
+
+    - name: Read Proxmox roles
+      ansible.builtin.command:
+        argv:
+          - pveum
+          - role
+          - list
+          - --output-format
+          - json
+      register: cv4pve_roles
+      changed_when: false
+
+    - name: Inspect autosnap role
+      ansible.builtin.set_fact:
+        cv4pve_existing_role: >-
+          {{ cv4pve_roles.stdout | from_json
+             | selectattr('roleid', 'equalto', cv4pve_autosnap_role)
+             | list | first | default({}) }}
+        cv4pve_expected_role_privs: "{{ cv4pve_autosnap_privileges | sort | join(',') }}"
+
+    - name: Create least-privilege autosnap role
+      ansible.builtin.command:
+        argv:
+          - pveum
+          - role
+          - add
+          - "{{ cv4pve_autosnap_role }}"
+          - --privs
+          - "{{ cv4pve_role_privileges }}"
+      when: cv4pve_existing_role.roleid is not defined
+      changed_when: true
+
+    - name: Correct autosnap role privileges
+      ansible.builtin.command:
+        argv:
+          - pveum
+          - role
+          - modify
+          - "{{ cv4pve_autosnap_role }}"
+          - --privs
+          - "{{ cv4pve_role_privileges }}"
+      when:
+        - cv4pve_existing_role.roleid is defined
+        - (cv4pve_existing_role.privs.split(',') | sort | join(',')) != cv4pve_expected_role_privs
+      changed_when: true
+
+    - name: Read Proxmox users
+      ansible.builtin.command:
+        argv:
+          - pveum
+          - user
+          - list
+          - --output-format
+          - json
+      register: cv4pve_users
+      changed_when: false
+
+    - name: Generate initial autosnap user password
+      ansible.builtin.set_fact:
+        cv4pve_bootstrap_password: "{{ lookup('password', '/dev/null length=64 chars=ascii_letters,digits') }}"
+      when: cv4pve_autosnap_user not in (cv4pve_users.stdout | from_json | map(attribute='userid') | list)
+      no_log: true
+
+    - name: Create autosnap service user
+      ansible.builtin.command:
+        argv:
+          - pveum
+          - user
+          - add
+          - "{{ cv4pve_autosnap_user }}"
+          - --password
+          - "{{ cv4pve_bootstrap_password }}"
+          - --comment
+          - "cv4pve-autosnap service account"
+      when: cv4pve_bootstrap_password is defined
+      changed_when: true
+      no_log: true
+
+
+    - name: Read Proxmox ACLs
+      ansible.builtin.command:
+        argv:
+          - pveum
+          - acl
+          - list
+          - --output-format
+          - json
+      register: cv4pve_acls
+      changed_when: false
+
+    - name: Grant autosnap role to service user
+      ansible.builtin.command:
+        argv:
+          - pveum
+          - acl
+          - modify
+          - /
+          - --user
+          - "{{ cv4pve_autosnap_user }}"
+          - --role
+          - "{{ cv4pve_autosnap_role }}"
+      when: >-
+        not (cv4pve_acls.stdout | from_json
+        | selectattr('path', 'equalto', '/')
+        | selectattr('ugid', 'equalto', cv4pve_autosnap_user)
+        | selectattr('roleid', 'equalto', cv4pve_autosnap_role)
+        | list | length > 0)
+      changed_when: true
+
+    - name: Create autosnap API token
+      ansible.builtin.command:
+        argv:
+          - pveum
+          - user
+          - token
+          - add
+          - "{{ cv4pve_autosnap_user }}"
+          - "{{ cv4pve_autosnap_token_id }}"
+          - --privsep
+          - "1"
+          - --output-format
+          - json
+      register: cv4pve_token_creation
+      when: not cv4pve_config_present
+      changed_when: true
+      no_log: true
+
+    - name: Extract newly created autosnap API token  # noqa no-handler
+      ansible.builtin.set_fact:
+        cv4pve_token: >-
+          {{ (cv4pve_token_creation.stdout | from_json)['full-tokenid'] }}={{ (cv4pve_token_creation.stdout | from_json).value }}
+        cv4pve_full_token_id: "{{ (cv4pve_token_creation.stdout | from_json)['full-tokenid'] }}"
+      when: cv4pve_token_creation is changed
+      no_log: true
+
+    - name: Refuse to continue when token was not returned
+      ansible.builtin.assert:
+        that:
+          - cv4pve_token is defined
+          - cv4pve_token | trim | length > 0
+          - cv4pve_full_token_id | trim | length > 0
+        fail_msg: "Proxmox did not return an API token; no secret file was written"
+      when: not cv4pve_config_present
+      no_log: true
+
+    - name: Build autosnap parameter file content
+      ansible.builtin.set_fact:
+        cv4pve_parameter_content: |
+          --host=localhost
+          --api-token={{ cv4pve_token }}
+      when: not cv4pve_config_present
+      no_log: true
+
+    - name: Grant autosnap role to API token  # noqa no-handler
+      ansible.builtin.command:
+        argv:
+          - pveum
+          - acl
+          - modify
+          - /
+          - --token
+          - "{{ cv4pve_full_token_id }}"
+          - --role
+          - "{{ cv4pve_autosnap_role }}"
+      when: cv4pve_token_creation is changed
+      changed_when: true
+      no_log: true
+
+    - name: Write cv4pve-autosnap parameter file
+      ansible.builtin.copy:
+        dest: "/var/tmp/.cv4pve-autosnap.conf"
+        content: "{{ cv4pve_parameter_content }}"
+        owner: root
+        group: root
+        mode: "0600"
+        force: true
+      when: not cv4pve_config_present
+      no_log: true
+
+    - name: Install cv4pve-autosnap parameter file in pmxcfs
+      ansible.builtin.command:
+        argv:
+          - cp
+          - /var/tmp/.cv4pve-autosnap.conf
+          - "{{ cv4pve_autosnap_config }}"
+      when: not cv4pve_config_present
+      changed_when: true
+      no_log: true
+
+    - name: Remove temporary cv4pve-autosnap parameter file
+      ansible.builtin.file:
+        path: /var/tmp/.cv4pve-autosnap.conf
+        state: absent
+      no_log: true
+
+    - name: Keep VM selection outside secret parameter file
+      ansible.builtin.command:
+        argv:
+          - sed
+          - -i
+          - /^--vmid=/d
+          - "{{ cv4pve_autosnap_config }}"
+      when: cv4pve_config_present
+      changed_when: false
+      no_log: true
+
+    - name: Remove misplaced only-running option from parameter file
+      ansible.builtin.lineinfile:
+        path: "{{ cv4pve_autosnap_config }}"
+        regexp: '^--only-running$'
+        state: absent
+        unsafe_writes: true
+      no_log: true
+
+    - name: Ensure autosnap cron job
       ansible.builtin.cron:
         name: proxmox autosnap
-        minute: "55"
-        hour: "20"
+        minute: "{{ cv4pve_autosnap_minute }}"
+        hour: "{{ cv4pve_autosnap_hour }}"
         user: root
-        #job: /usr/local/bin/cv4pve-autosnap --host=localhost --username="userbackup@pve" --password="mypassword" --vmid="all" snap --label="daily" --keep=4 >> /tmp/px-autosnap.log
-        job: /usr/local/bin/cv4pve-autosnap --host=localhost --username="{{ my_user}}@pve" --password="{{my_pass}}" --vmid="all" snap --label="daily" --keep=4 >> /tmp/px-autosnap.log
+        job: >-
+          {{ cv4pve_autosnap_bin_path }} @{{ cv4pve_autosnap_config }}
+          --vmid={{ cv4pve_autosnap_vmid }} snap
+          {{ '--only-running' if cv4pve_autosnap_only_running | bool else '' }}
+          --label={{ cv4pve_autosnap_label }} --keep={{ cv4pve_autosnap_keep }}
+          >>/var/log/cv4pve-autosnap.log 2>&1
         cron_file: 10-autosnap-px
 
-    - name: Create {{ my_user }} user
-      shell: pveum user add {{ my_user }}@pve --password {{ my_pass }} --comment "Ansible added admin"
+    - name: Verify installed cv4pve-autosnap version
+      ansible.builtin.command:
+        argv:
+          - "{{ cv4pve_autosnap_bin_path }}"
+          - --version
+      register: cv4pve_version_check
+      changed_when: false
 
-    - name: Create adminz group
-      shell: pveum group add adminz -comment "Ansible Admins"
-
-    - name: Give Administrator permission to adminz group
-      shell: pveum acl modify / -group adminz -role Administrator
-
-    - name: Add {{ my_user }}@pve to adminz group
-      shell: pveum user modify "{{ my_user }}"@pve -group adminz
-
-    - name: Create lock file
-      file: path="/root/.init_setup_done" state=touch
-
-    - name: Done!
-      vars:
-        msg: |
-          An additional user has been create with Administrator privileges.
-          Username : {{ my_user }}
-          Password : {{ my_pass }}
-          A new cron file has been generated to automate the daily vm snapshot
-          located at : /etc/cron.d/10-autosnap-px
-      debug:
-        msg: "{{ msg.split('\n') }}"
+    - name: Report configuration without secrets
+      ansible.builtin.debug:
+        msg:
+          - "cv4pve-autosnap: {{ cv4pve_version_check.stdout | trim }}"
+          - "Target: {{ cv4pve_autosnap_vmid }}"
+          - "Schedule: {{ cv4pve_autosnap_hour }}:{{ cv4pve_autosnap_minute }}"
+          - "Retention: {{ cv4pve_autosnap_keep }} snapshots ({{ cv4pve_autosnap_label }})"
+          - "Configuration: {{ cv4pve_autosnap_config }}"
