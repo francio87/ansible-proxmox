@@ -168,7 +168,7 @@
 
     - name: Create temporary cv4pve-autosnap extraction directory
       ansible.builtin.file:
-        path: "/var/tmp/cv4pve-autosnap-{{ cv4pve_release_version }}"
+        path: "/tmp/cv4pve-autosnap-{{ cv4pve_release_version }}"
         state: directory
         owner: root
         group: root
@@ -178,7 +178,7 @@
     - name: Download cv4pve-autosnap release
       ansible.builtin.get_url:
         url: "{{ cv4pve_release_asset.browser_download_url }}"
-        dest: "/var/tmp/cv4pve-autosnap-{{ cv4pve_release_version }}.zip"
+        dest: "/tmp/cv4pve-autosnap-{{ cv4pve_release_version }}.zip"
         checksum: "{{ cv4pve_release_asset.digest | default(omit, true) }}"
         owner: root
         group: root
@@ -193,15 +193,15 @@
 
     - name: Extract cv4pve-autosnap release
       ansible.builtin.unarchive:
-        src: "/var/tmp/cv4pve-autosnap-{{ cv4pve_release_version }}.zip"
-        dest: "/var/tmp/cv4pve-autosnap-{{ cv4pve_release_version }}"
+        src: "/tmp/cv4pve-autosnap-{{ cv4pve_release_version }}.zip"
+        dest: "/tmp/cv4pve-autosnap-{{ cv4pve_release_version }}"
         remote_src: true
-        creates: "/var/tmp/cv4pve-autosnap-{{ cv4pve_release_version }}/{{ cv4pve_autosnap_binary }}"
+        creates: "/tmp/cv4pve-autosnap-{{ cv4pve_release_version }}/{{ cv4pve_autosnap_binary }}"
       when: cv4pve_autosnap_update_needed
 
     - name: Install cv4pve-autosnap binary in local bin
       ansible.builtin.copy:
-        src: "/var/tmp/cv4pve-autosnap-{{ cv4pve_release_version }}/{{ cv4pve_autosnap_binary }}"
+        src: "/tmp/cv4pve-autosnap-{{ cv4pve_release_version }}/{{ cv4pve_autosnap_binary }}"
         dest: "{{ cv4pve_autosnap_bin_path }}"
         remote_src: true
         owner: root
@@ -211,13 +211,13 @@
 
     - name: Remove temporary cv4pve-autosnap archive
       ansible.builtin.file:
-        path: "/var/tmp/cv4pve-autosnap-{{ cv4pve_release_version }}.zip"
+        path: "/tmp/cv4pve-autosnap-{{ cv4pve_release_version }}.zip"
         state: absent
       when: cv4pve_autosnap_update_needed
 
     - name: Remove temporary cv4pve-autosnap extraction directory
       ansible.builtin.file:
-        path: "/var/tmp/cv4pve-autosnap-{{ cv4pve_release_version }}"
+        path: "/tmp/cv4pve-autosnap-{{ cv4pve_release_version }}"
         state: absent
       when: cv4pve_autosnap_update_needed
 
@@ -390,7 +390,7 @@
 
     - name: Write cv4pve-autosnap parameter file
       ansible.builtin.copy:
-        dest: "/var/tmp/.cv4pve-autosnap.conf"
+        dest: "/tmp/.cv4pve-autosnap.conf"
         content: "{{ cv4pve_parameter_content }}"
         owner: root
         group: root
@@ -403,7 +403,7 @@
       ansible.builtin.command:
         argv:
           - cp
-          - /var/tmp/.cv4pve-autosnap.conf
+          - /tmp/.cv4pve-autosnap.conf
           - "{{ cv4pve_autosnap_config }}"
       when: not cv4pve_config_present
       changed_when: true
@@ -411,7 +411,7 @@
 
     - name: Remove temporary cv4pve-autosnap parameter file
       ansible.builtin.file:
-        path: /var/tmp/.cv4pve-autosnap.conf
+        path: /tmp/.cv4pve-autosnap.conf
         state: absent
       no_log: true
 
