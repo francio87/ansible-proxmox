@@ -6,7 +6,7 @@
 
   vars:
     cv4pve_autosnap_repository: "Corsinvest/cv4pve-autosnap"
-    cv4pve_autosnap_version: "2.1.1"
+    cv4pve_autosnap_version: "2.2.0"
     cv4pve_autosnap_arch: "linux-x64"
     cv4pve_autosnap_binary: "cv4pve-autosnap"
     cv4pve_autosnap_vmid: "@all"
